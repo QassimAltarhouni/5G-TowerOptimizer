@@ -6,7 +6,7 @@ import numpy as np
 from simulator import generate_users_near_towers
 from visualizer import plot_towers_on_map
 from data_loader import load_opencellid_data
-from fitness_function import calculate_fitness
+from fitness_function import calculate_fitness, compute_normalization_bounds
 from real_user_generator import generate_users_from_population_raster
 from genetic_optimizer import run_ga
 from genetic_optimizer import run_kbga
@@ -81,29 +81,21 @@ m.save(map_file)
 print(f"📍 Map saved: {map_file}")
 print(f"📊 Cleaned data saved to: {CLEAN_DATA_DIR}")
 
-# === DYNAMIC NORMALIZATION BOUNDS ===
-# print("\n📊 Sampling fitness for normalization bounds...")
-# samples = []
-# for i in range(5):
-#     sample_frac = np.random.uniform(0.3, 0.9)
-#     sampled = df_5g.sample(frac=sample_frac)
-#     result = calculate_fitness(sampled, users, verbose=False)
-#     samples.append(result)
 
-# min_vals = {key: min(s[key] for s in samples) for key in ['active_towers', 'unserved_demand', 'overload', 'excessive_distance', 'imbalance']}
-# max_vals = {key: max(s[key] for s in samples) for key in ['active_towers', 'unserved_demand', 'overload', 'excessive_distance', 'imbalance']}
-# normalization_bounds = (min_vals, max_vals)
+print("\n📊 Sampling fitness for normalization bounds...")
+normalization_bounds = compute_normalization_bounds(df_5g, users)
+min_vals, max_vals = normalization_bounds
 
-# print("\n📏 Normalization bounds:")
-# print("   Min:", min_vals)
-# print("   Max:", max_vals)
+print("\n📏 Normalization bounds:")
+print("   Min:", min_vals)
+print("   Max:", max_vals)
 
 # === BASELINE FITNESS CALCULATION ===
 print("\n⚙️ Calculating baseline fitness...")
 results = calculate_fitness(
     df_towers=df_5g.copy(),
     df_users=users,
-    # normalization_bounds=normalization_bounds,
+    normalization_bounds=normalization_bounds,
     verbose=True
 )
 
@@ -119,8 +111,8 @@ print(f"   Load Imbalance: {results['imbalance']} Mbps")
 print("\n🚀 Running Genetic Algorithm optimization...")
 best_solution, best_score = run_ga(
     df_5g,
-    users
-    # normalization_bounds=normalization_bounds
+    users,
+    normalization_bounds=normalization_bounds
 )
 
 print("\n🏁 FINAL BEST FITNESS:", best_score)
@@ -128,8 +120,8 @@ print("\n🏁 FINAL BEST FITNESS:", best_score)
 # === KNOWLEDGE-BASED GENETIC OPTIMIZATION ===
 kbga_solution, kbga_score = run_kbga(
     df_5g,
-    users
-    # normalization_bounds=normalization_bounds
+    users,
+    normalization_bounds=normalization_bounds
 )
 
 print("\n🧠 FINAL KBGA FITNESS:", kbga_score)
