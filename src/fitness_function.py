@@ -1,16 +1,16 @@
 import numpy as np
 import pandas as pd
-# from geopy.distance import geodesic  # ❌ No longer needed
-from math import radians, cos, sin, asin, sqrt
+from scipy.spatial import cKDTree
 
-# ✅ Fast replacement for geodesic
-def haversine_m(lat1, lon1, lat2, lon2):
-    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
-    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
-    c = 2 * asin(sqrt(a))
-    return 6371000 * c
+
+def latlon_to_xyz(lat, lon):
+    """Convert latitude and longitude arrays to 3D Cartesian coordinates."""
+    lat_rad = np.radians(lat)
+    lon_rad = np.radians(lon)
+    x = np.cos(lat_rad) * np.cos(lon_rad)
+    y = np.cos(lat_rad) * np.sin(lon_rad)
+    z = np.sin(lat_rad)
+    return np.vstack((x, y, z)).T
 
 def calculate_fitness(
     df_towers,
@@ -29,22 +29,13 @@ def calculate_fitness(
     excessive_distance_penalty = 0
     unserved_demand = 0
 
-    # === Vectorized nearest tower search ===
-    tower_coords = df_towers[["lat", "lon"]].to_numpy()
-    user_coords = df_users[["lat", "lon"]].to_numpy()
+    # === Fast nearest tower search using a KD-tree ===
+    tower_xyz = latlon_to_xyz(df_towers["lat"].to_numpy(), df_towers["lon"].to_numpy())
+    user_xyz = latlon_to_xyz(df_users["lat"].to_numpy(), df_users["lon"].to_numpy())
 
-    tower_rad = np.radians(tower_coords)
-    user_rad = np.radians(user_coords)
-
-    dlat = user_rad[:, None, 0] - tower_rad[None, :, 0]
-    dlon = user_rad[:, None, 1] - tower_rad[None, :, 1]
-    a = np.sin(dlat / 2) ** 2 + np.cos(user_rad[:, None, 0]) * np.cos(
-        tower_rad[None, :, 0]
-    ) * np.sin(dlon / 2) ** 2
-    distances = 2 * np.arcsin(np.sqrt(a)) * 6371000
-
-    closest_indices = np.argmin(distances, axis=1)
-    min_distances = distances[np.arange(len(df_users)), closest_indices]
+    tree = cKDTree(tower_xyz)
+    chord_dist, closest_indices = tree.query(user_xyz, k=1)
+    min_distances = 2 * np.arcsin(np.clip(chord_dist / 2, 0, 1)) * 6371000
     closest_cells = df_towers.iloc[closest_indices]["cell"].to_numpy()
 
     demands = df_users["demand_mbps"].to_numpy()
@@ -79,7 +70,10 @@ def calculate_fitness(
         min_vals, max_vals = normalization_bounds
 
         def normalize(val, min_val, max_val):
-            return (val - min_val) / (max_val - min_val + 1e-6)
+            if max_val == min_val:
+                return 0.0
+            norm_val = (val - min_val) / (max_val - min_val)
+            return float(np.clip(norm_val, 0.0, 1.0))
 
         norm_active = normalize(
             active_towers, min_vals["active_towers"], max_vals["active_towers"]
@@ -96,19 +90,19 @@ def calculate_fitness(
         norm_imbalance = normalize(imbalance, min_vals["imbalance"], max_vals["imbalance"])
 
         fitness = (
-            (w1 * norm_active)
-            + (w2 * norm_unserved)
-            + (w3 * norm_overload)
-            + (w4 * norm_distance)
-            + (w5 * norm_imbalance)
+                (w1 * norm_active)
+                + (w2 * norm_unserved)
+                + (w3 * norm_overload)
+                + (w4 * norm_distance)
+                + (w5 * norm_imbalance)
         )
     else:
         fitness = (
-            (w1 * active_towers)
-            + (w2 * unserved_demand)
-            + (w3 * overload)
-            + (w4 * excessive_distance_penalty)
-            + (w5 * imbalance)
+                (w1 * active_towers)
+                + (w2 * unserved_demand)
+                + (w3 * overload)
+                + (w4 * excessive_distance_penalty)
+                + (w5 * imbalance)
         )
 
     if verbose:
@@ -147,7 +141,10 @@ def compute_normalization_bounds(df_towers, df_users, samples=5, frac_range=(0.3
         stats = calculate_fitness(sampled, df_users, verbose=False)
         results.append(stats)
 
-    min_vals = {m: min(r[m] for r in results) for m in metrics}
+    # include full dataset to prevent values outside sampled range
+    results.append(calculate_fitness(df_towers, df_users, verbose=False))
+
+    min_vals = {m: min(0, *(r[m] for r in results)) for m in metrics}
     max_vals = {m: max(r[m] for r in results) for m in metrics}
 
     return min_vals, max_vals
