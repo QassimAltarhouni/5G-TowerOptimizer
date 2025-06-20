@@ -15,8 +15,8 @@ def evaluate_population(population, df_towers, df_users, normalization_bounds=No
         score = calculate_fitness(
             df_active,
             df_users,
-            # normalization_bounds=normalization_bounds,
-            verbose=False
+            normalization_bounds=normalization_bounds,
+            verbose=False,
         )["fitness"]
         fitness_scores.append(score)
     return np.array(fitness_scores)
@@ -48,7 +48,7 @@ def run_ga(df_towers, df_users, pop_size=30, num_generations=100, mutation_rate=
             population,
             df_towers,
             df_users,
-            # normalization_bounds=normalization_bounds
+            normalization_bounds=normalization_bounds,
         )
 
         best_idx = np.argmin(fitness_scores)
@@ -86,7 +86,7 @@ def run_kbga(df_towers, df_users, pop_size=30, num_generations=100, mutation_rat
             population,
             df_towers,
             df_users,
-            # normalization_bounds=normalization_bounds
+            normalization_bounds=normalization_bounds,
         )
 
         best_idx = np.argmin(fitness_scores)
