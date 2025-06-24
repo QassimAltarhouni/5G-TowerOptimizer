@@ -25,10 +25,13 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
     results = []
     norm_bounds = compute_normalization_bounds(df_towers, df_users)
 
+    print(f"\n🏁 Tuning instance: {instance_name}")
+
     # --- population size ---
     pop_sizes = [20, 50, 100]
     best_pop = pop_sizes[0]
     best_avg = float("inf")
+    print("  • Step 1/3: population size")
     for pop in pop_sizes:
         scores = [
             ga_func(
@@ -43,6 +46,7 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
             for _ in range(10)
         ]
         avg = float(np.mean(scores))
+        print(f"    - pop {pop}: {avg:.4f}")
         results.append(
             {
                 "instance": instance_name,
@@ -61,6 +65,7 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
     mut_types = ["flip", "swap"]
     best_mut = mut_types[0]
     best_avg = float("inf")
+    print("  • Step 2/3: mutation type")
     for m in mut_types:
         scores = [
             ga_func(
@@ -76,6 +81,7 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
             for _ in range(10)
         ]
         avg = float(np.mean(scores))
+        print(f"    - mutation {m}: {avg:.4f}")
         results.append(
             {
                 "instance": instance_name,
@@ -94,6 +100,7 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
     cross_methods = ["uniform", "one_point"]
     best_cross = cross_methods[0]
     best_avg = float("inf")
+    print("  • Step 3/3: crossover method")
     for c in cross_methods:
         scores = [
             ga_func(
@@ -110,6 +117,7 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
             for _ in range(10)
         ]
         avg = float(np.mean(scores))
+        print(f"    - crossover {c}: {avg:.4f}")
         results.append(
             {
                 "instance": instance_name,
@@ -187,7 +195,8 @@ def evaluate_instance(df_towers, df_users, ga_params, kbga_params, instance_name
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    tune_instances = ["germany.csv.gz", "france.csv.gz"]
+    # Tune on every available instance in the data folder
+    tune_instances = [f for f in os.listdir(DATA_DIR) if f.endswith(".csv.gz")]
     ga_records = []
     kbga_records = []
     ga_params_map = {}
@@ -198,6 +207,7 @@ def main():
         users = generate_users_near_towers(towers, count=1000)
         ga_params, ga_df = stepwise_tuning(towers, users, run_ga, fname)
         kbga_params, kbga_df = stepwise_tuning(towers, users, run_kbga, fname)
+        print(f"✅ Finished tuning {fname}")
         ga_records.append(ga_df)
         kbga_records.append(kbga_df)
         ga_params_map[fname] = ga_params
@@ -209,12 +219,15 @@ def main():
     all_files = [f for f in os.listdir(DATA_DIR) if f.endswith(".csv.gz")]
     eval_records = []
     for fname in all_files:
+        print(f"\n🔎 Evaluating {fname}")
         towers = load_instance(fname)
         users = generate_users_near_towers(towers, count=1000)
         ga_params = ga_params_map.get(fname, list(ga_params_map.values())[0])
         kbga_params = kbga_params_map.get(fname, list(kbga_params_map.values())[0])
-        eval_records.append(
-            evaluate_instance(towers, users, ga_params, kbga_params, fname)
+        record = evaluate_instance(towers, users, ga_params, kbga_params, fname)
+        eval_records.append(record)
+        print(
+            f"    GA best={record['ga_best']:.4f}, KBGA best={record['kbga_best']:.4f}"
         )
 
     eval_df = pd.DataFrame(eval_records)
