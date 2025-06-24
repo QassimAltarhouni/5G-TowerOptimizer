@@ -1,5 +1,5 @@
-import numpy as np
-from fitness_function import calculate_fitness
+
+
 from knowledge_utils import apply_knowledge_rules
 
 
@@ -26,10 +26,23 @@ def select_parents(population, fitness_scores, num_parents):
     return population[sorted_indices[:num_parents]]
 
 def uniform_crossover(parent1, parent2):
+    """Combine two parents using the specified crossover method."""
+    if method == "one_point":
+        point = np.random.randint(1, len(parent1))
+        return np.concatenate([parent1[:point], parent2[point:]])
+    # default to uniform crossover
     mask = np.random.randint(0, 2, size=parent1.shape).astype(bool)
     return np.where(mask, parent1, parent2)
 
-def mutate(individual, mutation_rate=0.05):
+def mutate(individual, mutation_rate=0.05, method="flip"):
+    """Mutate an individual using the selected strategy."""
+    if method == "swap":
+        if np.random.rand() < mutation_rate:
+            i, j = np.random.choice(len(individual), 2, replace=False)
+            individual[i], individual[j] = individual[j], individual[i]
+        return individual
+
+    # default bit flip mutation
     mutation_mask = np.random.rand(len(individual)) < mutation_rate
     individual[mutation_mask] = 1 - individual[mutation_mask]
     return individual
@@ -41,6 +54,8 @@ def run_ga(
     num_generations=100,
     mutation_rate=0.05,
     num_parents=10,
+    mutation_type="flip",
+    crossover_method="uniform",
     normalization_bounds=None,
     verbose=True,
 ):
@@ -75,8 +90,8 @@ def run_ga(
         while len(children) < pop_size:
             p1 = parents[np.random.randint(0, num_parents)]
             p2 = parents[np.random.randint(0, num_parents)]
-            child = uniform_crossover(p1, p2)
-            child = mutate(child, mutation_rate)
+            child = crossover(p1, p2, method=crossover_method)
+            child = mutate(child, mutation_rate, method=mutation_type)
             children.append(child)
 
         population = np.array(children)
@@ -90,6 +105,8 @@ def run_kbga(
     num_generations=100,
     mutation_rate=0.05,
     num_parents=10,
+    mutation_type="flip",
+    crossover_method="uniform",
     normalization_bounds=None,
     verbose=True,
 ):
@@ -124,8 +141,8 @@ def run_kbga(
         while len(children) < pop_size:
             p1 = parents[np.random.randint(0, num_parents)]
             p2 = parents[np.random.randint(0, num_parents)]
-            child = uniform_crossover(p1, p2)
-            child = mutate(child, mutation_rate)
+            child = crossover(p1, p2, method=crossover_method)
+            child = mutate(child, mutation_rate, method=mutation_type)
 
             # 👇 تطبيق قواعد المعرفة بعد الطفرة
             child = apply_knowledge_rules(child, df_towers, df_users)
