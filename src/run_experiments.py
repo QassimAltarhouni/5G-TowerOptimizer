@@ -6,10 +6,13 @@ from data_loader import load_opencellid_data
 from simulator import generate_users_near_towers
 from fitness_function import calculate_fitness, compute_normalization_bounds
 from genetic_optimizer import run_ga, run_kbga
+from visualizer import plot_towers_on_map
 
 
 DATA_DIR = "../data"
 OUTPUT_DIR = "../outputs"
+FIG_DIR = os.path.join(OUTPUT_DIR, "figures")
+CLEAN_DIR = os.path.join(OUTPUT_DIR, "clean_data")
 
 
 def load_instance(filename):
@@ -144,7 +147,7 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
     return best_params, pd.DataFrame(results)
 
 
-def evaluate_instance(df_towers, df_users, ga_params, kbga_params, instance_name):
+def evaluate_instance(df_towers, df_users, ga_params, kbga_params, instance_name, save_comparison=False):
     norm_bounds = ga_params["normalization_bounds"]
     baseline = calculate_fitness(
         df_towers, df_users, normalization_bounds=norm_bounds, verbose=False
@@ -182,7 +185,7 @@ def evaluate_instance(df_towers, df_users, ga_params, kbga_params, instance_name
         for _ in range(10)
     ]
 
-    return {
+    record = {
         "instance": instance_name,
         "baseline": float(baseline),
         "ga_best": float(np.min(ga_scores)),
@@ -191,9 +194,23 @@ def evaluate_instance(df_towers, df_users, ga_params, kbga_params, instance_name
         "kbga_worst": float(np.max(kbga_scores)),
     }
 
+    if save_comparison:
+        base = os.path.splitext(os.path.splitext(instance_name)[0])[0]
+        cmp_path = os.path.join(OUTPUT_DIR, f"{base}_comparison.csv")
+        pd.DataFrame(
+            [
+                {"Method": "GA", "Fitness": record["ga_best"]},
+                {"Method": "KBGA", "Fitness": record["kbga_best"]},
+            ]
+        ).to_csv(cmp_path, index=False)
+
+    return record
+
 
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(FIG_DIR, exist_ok=True)
+    os.makedirs(CLEAN_DIR, exist_ok=True)
 
     # Tune on every available instance in the data folder
     tune_instances = [f for f in os.listdir(DATA_DIR) if f.endswith(".csv.gz")]
@@ -205,6 +222,19 @@ def main():
     for fname in tune_instances:
         towers = load_instance(fname)
         users = generate_users_near_towers(towers, count=1000)
+        base = os.path.splitext(os.path.splitext(fname)[0])[0]
+        towers.to_csv(os.path.join(CLEAN_DIR, f"{base}_5g_towers.csv"), index=False)
+        users.to_csv(os.path.join(CLEAN_DIR, f"{base}_users.csv"), index=False)
+        center = [
+            (towers['lat'].min() + towers['lat'].max()) / 2,
+            (towers['lon'].min() + towers['lon'].max()) / 2,
+        ]
+        plot_towers_on_map(
+            towers,
+            map_center=center,
+            df_users=users,
+            save_path=os.path.join(FIG_DIR, f"{base}_5g_map.html"),
+        )
         ga_params, ga_df = stepwise_tuning(towers, users, run_ga, fname)
         kbga_params, kbga_df = stepwise_tuning(towers, users, run_kbga, fname)
         print(f"✅ Finished tuning {fname}")
@@ -224,10 +254,17 @@ def main():
         users = generate_users_near_towers(towers, count=1000)
         ga_params = ga_params_map.get(fname, list(ga_params_map.values())[0])
         kbga_params = kbga_params_map.get(fname, list(kbga_params_map.values())[0])
-        record = evaluate_instance(towers, users, ga_params, kbga_params, fname)
+        record = evaluate_instance(
+            towers,
+            users,
+            ga_params,
+            kbga_params,
+            fname,
+            save_comparison=True,
+        )
         eval_records.append(record)
         print(
-            f"    GA best={record['ga_best']:.4f}, KBGA best={record['kbga_best']:.4f}"
+            f"    baseline={record['baseline']:.4f}, GA best={record['ga_best']:.4f}, KBGA best={record['kbga_best']:.4f}"
         )
 
     eval_df = pd.DataFrame(eval_records)
