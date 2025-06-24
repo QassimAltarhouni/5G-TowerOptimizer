@@ -103,19 +103,57 @@ print("\n🚀 Running Genetic Algorithm optimization...")
 best_solution, best_score = run_ga(
     df_5g,
     users,
-    normalization_bounds=normalization_bounds
+    normalization_bounds=normalization_bounds,
+    verbose=False
 )
 
 print("\n🏁 FINAL BEST FITNESS:", best_score)
+
+# -- Show detailed breakdown for the GA best solution --
+ga_active = df_5g.copy()
+ga_active["active"] = best_solution
+ga_active = ga_active[ga_active["active"] == 1]
+ga_results = calculate_fitness(
+    df_towers=ga_active,
+    df_users=users,
+    normalization_bounds=normalization_bounds,
+    verbose=True,
+)
+
+print("\n📊 GA Best Solution Breakdown:")
+print(f"   Active Towers: {ga_results['active_towers']}")
+print(f"   Unserved Demand: {ga_results['unserved_demand']} Mbps")
+print(f"   Overload: {ga_results['overload']} Mbps")
+print(f"   Excessive Distance: {ga_results['excessive_distance']} meters")
+print(f"   Load Imbalance: {ga_results['imbalance']} Mbps")
 
 # === KNOWLEDGE-BASED GENETIC OPTIMIZATION ===
 kbga_solution, kbga_score = run_kbga(
     df_5g,
     users,
-    normalization_bounds=normalization_bounds
+    normalization_bounds=normalization_bounds,
+    verbose=False
 )
 
 print("\n🧠 FINAL KBGA FITNESS:", kbga_score)
+
+# -- Show detailed breakdown for the KBGA best solution --
+kbga_active = df_5g.copy()
+kbga_active["active"] = kbga_solution
+kbga_active = kbga_active[kbga_active["active"] == 1]
+kbga_results = calculate_fitness(
+    df_towers=kbga_active,
+    df_users=users,
+    normalization_bounds=normalization_bounds,
+    verbose=True,
+)
+
+print("\n📊 KBGA Best Solution Breakdown:")
+print(f"   Active Towers: {kbga_results['active_towers']}")
+print(f"   Unserved Demand: {kbga_results['unserved_demand']} Mbps")
+print(f"   Overload: {kbga_results['overload']} Mbps")
+print(f"   Excessive Distance: {kbga_results['excessive_distance']} meters")
+print(f"   Load Imbalance: {kbga_results['imbalance']} Mbps")
 
 # === COMPARISON ===
 print("\n📊 COMPARISON:")

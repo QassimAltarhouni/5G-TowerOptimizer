@@ -106,12 +106,37 @@ def calculate_fitness(
         )
 
     if verbose:
-        print(f" Breakdown:")
-        print(f"   Active Towers: {active_towers} × {w1} = {w1 * active_towers}")
-        print(f"   Unserved Demand: {unserved_demand} Mbps × {w2} = {w2 * unserved_demand}")
-        print(f"   Overload: {overload} Mbps × {w3} = {w3 * overload}")
-        print(f"   Excessive Distance: {excessive_distance_penalty:.2f} m × {w4} = {w4 * excessive_distance_penalty:.2f}")
-        print(f"   Load Imbalance: {imbalance:.2f} Mbps × {w5} = {w5 * imbalance:.2f}")
+        print(" Breakdown:")
+        if normalization_bounds:
+            print(
+                f"   Active Towers: {active_towers} × {w1} = {w1 * active_towers} ({norm_active:.4f})"
+            )
+            print(
+                f"   Unserved Demand: {unserved_demand} Mbps × {w2} = {w2 * unserved_demand} ({norm_unserved:.4f})"
+            )
+            print(
+                f"   Overload: {overload} Mbps × {w3} = {w3 * overload} ({norm_overload:.4f})"
+            )
+            print(
+                f"   Excessive Distance: {excessive_distance_penalty:.2f} m × {w4} = {w4 * excessive_distance_penalty:.2f} ({norm_distance:.4f})"
+            )
+            print(
+                f"   Load Imbalance: {imbalance:.2f} Mbps × {w5} = {w5 * imbalance:.2f} ({norm_imbalance:.4f})"
+            )
+        else:
+            print(
+                f"   Active Towers: {active_towers} × {w1} = {w1 * active_towers}"
+            )
+            print(
+                f"   Unserved Demand: {unserved_demand} Mbps × {w2} = {w2 * unserved_demand}"
+            )
+            print(f"   Overload: {overload} Mbps × {w3} = {w3 * overload}")
+            print(
+                f"   Excessive Distance: {excessive_distance_penalty:.2f} m × {w4} = {w4 * excessive_distance_penalty:.2f}"
+            )
+            print(
+                f"   Load Imbalance: {imbalance:.2f} Mbps × {w5} = {w5 * imbalance:.2f}"
+            )
 
     return {
         "fitness": round(fitness, 6),

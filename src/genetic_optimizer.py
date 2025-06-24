@@ -34,7 +34,16 @@ def mutate(individual, mutation_rate=0.05):
     individual[mutation_mask] = 1 - individual[mutation_mask]
     return individual
 
-def run_ga(df_towers, df_users, pop_size=30, num_generations=100, mutation_rate=0.05, num_parents=10, normalization_bounds=None):
+def run_ga(
+    df_towers,
+    df_users,
+    pop_size=30,
+    num_generations=100,
+    mutation_rate=0.05,
+    num_parents=10,
+    normalization_bounds=None,
+    verbose=True,
+):
     num_towers = len(df_towers)
     population = initialize_population(pop_size, num_towers)
 
@@ -42,7 +51,8 @@ def run_ga(df_towers, df_users, pop_size=30, num_generations=100, mutation_rate=
     best_fitness = float("inf")
 
     for generation in range(num_generations):
-        print(f"Generation {generation + 1}/{num_generations}")
+        if verbose:
+            print(f"Generation {generation + 1}/{num_generations}")
 
         fitness_scores = evaluate_population(
             population,
@@ -56,7 +66,8 @@ def run_ga(df_towers, df_users, pop_size=30, num_generations=100, mutation_rate=
             best_fitness = fitness_scores[best_idx]
             best_solution = population[best_idx].copy()
 
-        print(f"   🔹 Best Fitness: {best_fitness:.4f}")
+        if verbose:
+            print(f"   🔹 Best Fitness: {best_fitness:.4f}")
 
         parents = select_parents(population, fitness_scores, num_parents)
         children = []
@@ -72,7 +83,16 @@ def run_ga(df_towers, df_users, pop_size=30, num_generations=100, mutation_rate=
 
     return best_solution, best_fitness
 
-def run_kbga(df_towers, df_users, pop_size=30, num_generations=100, mutation_rate=0.05, num_parents=10, normalization_bounds=None):
+def run_kbga(
+    df_towers,
+    df_users,
+    pop_size=30,
+    num_generations=100,
+    mutation_rate=0.05,
+    num_parents=10,
+    normalization_bounds=None,
+    verbose=True,
+):
     num_towers = len(df_towers)
     population = initialize_population(pop_size, num_towers)
 
@@ -80,7 +100,8 @@ def run_kbga(df_towers, df_users, pop_size=30, num_generations=100, mutation_rat
     best_fitness = float("inf")
 
     for generation in range(num_generations):
-        print(f"[KBGA] Generation {generation + 1}/{num_generations}")
+        if verbose:
+            print(f"[KBGA] Generation {generation + 1}/{num_generations}")
 
         fitness_scores = evaluate_population(
             population,
@@ -94,7 +115,8 @@ def run_kbga(df_towers, df_users, pop_size=30, num_generations=100, mutation_rat
             best_fitness = fitness_scores[best_idx]
             best_solution = population[best_idx].copy()
 
-        print(f"   🔹 Best Fitness: {best_fitness:.4f}")
+        if verbose:
+            print(f"   🔹 Best Fitness: {best_fitness:.4f}")
 
         parents = select_parents(population, fitness_scores, num_parents)
         children = []
