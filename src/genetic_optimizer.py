@@ -1,5 +1,8 @@
 import numpy as np
+from scipy.stats._multivariate import method
+
 from fitness_function import calculate_fitness
+from knowledge_utils import apply_knowledge_rules
 from knowledge_utils import apply_knowledge_rules
 from knowledge_utils import apply_knowledge_rules
 
@@ -26,7 +29,7 @@ def select_parents(population, fitness_scores, num_parents):
     sorted_indices = np.argsort(fitness_scores)
     return population[sorted_indices[:num_parents]]
 
-def uniform_crossover(parent1, parent2):
+def perform_crossover(parent1, parent2, method="uniform"):
     """Combine two parents using the specified crossover method."""
     if method == "one_point":
         point = np.random.randint(1, len(parent1))
@@ -34,6 +37,9 @@ def uniform_crossover(parent1, parent2):
     # default to uniform crossover
     mask = np.random.randint(0, 2, size=parent1.shape).astype(bool)
     return np.where(mask, parent1, parent2)
+
+# Maintain backward compatibility with older imports
+crossover = perform_crossover
 
 def mutate(individual, mutation_rate=0.05, method="flip"):
     """Mutate an individual using the selected strategy."""
@@ -91,7 +97,7 @@ def run_ga(
         while len(children) < pop_size:
             p1 = parents[np.random.randint(0, num_parents)]
             p2 = parents[np.random.randint(0, num_parents)]
-            child = crossover(p1, p2, method=crossover_method)
+            child = perform_crossover(p1, p2, method=crossover_method)
             child = mutate(child, mutation_rate, method=mutation_type)
             children.append(child)
 
@@ -142,7 +148,7 @@ def run_kbga(
         while len(children) < pop_size:
             p1 = parents[np.random.randint(0, num_parents)]
             p2 = parents[np.random.randint(0, num_parents)]
-            child = crossover(p1, p2, method=crossover_method)
+            child = perform_crossover(p1, p2, method=crossover_method)
             child = mutate(child, mutation_rate, method=mutation_type)
 
             # 👇 تطبيق قواعد المعرفة بعد الطفرة
