@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-def generate_users_near_towers(df_towers, count=1000, max_distance_km=2.0):
+def generate_users_near_towers(df_towers, count=100000, max_distance_km=2.0):
     """
     Generate users within a fixed circular range of selected tower locations.
 

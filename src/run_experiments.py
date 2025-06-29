@@ -9,6 +9,7 @@ from genetic_optimizer import run_ga, run_kbga
 from visualizer import plot_towers_on_map
 
 
+# === Paths ===
 DATA_DIR = "../data"
 OUTPUT_DIR = "../outputs"
 FIG_DIR = os.path.join(OUTPUT_DIR, "figures")
@@ -16,7 +17,7 @@ CLEAN_DIR = os.path.join(OUTPUT_DIR, "clean_data")
 
 
 def load_instance(filename):
-    """Load tower data and filter 5G records."""
+    """Load OpenCellID data and filter only 5G (NR) records."""
     path = os.path.join(DATA_DIR, filename)
     df = load_opencellid_data(path)
     df.columns = df.columns.str.strip().str.lower()
@@ -24,13 +25,13 @@ def load_instance(filename):
 
 
 def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
-    """Tune GA hyper-parameters in three sequential steps."""
+    """Sequentially tune GA hyperparameters: population size, mutation type, crossover method."""
     results = []
     norm_bounds = compute_normalization_bounds(df_towers, df_users)
 
-    print(f"\n🏁 Tuning instance: {instance_name}")
+    print(f"\n\U0001F3C1 Tuning instance: {instance_name}")
 
-    # --- population size ---
+    # Step 1: Population Size
     pop_sizes = [20, 50, 100]
     best_pop = pop_sizes[0]
     best_avg = float("inf")
@@ -45,26 +46,23 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
                 mutation_rate=0.1,
                 normalization_bounds=norm_bounds,
                 verbose=False,
-            )[1]
-            for _ in range(10)
+            )[1] for _ in range(1)
         ]
         avg = float(np.mean(scores))
         print(f"    - pop {pop}: {avg:.4f}")
-        results.append(
-            {
-                "instance": instance_name,
-                "step": "population",
-                "pop_size": pop,
-                "mutation_type": "flip",
-                "crossover": "uniform",
-                "avg_fitness": avg,
-            }
-        )
+        results.append({
+            "instance": instance_name,
+            "step": "population",
+            "pop_size": pop,
+            "mutation_type": "flip",
+            "crossover": "uniform",
+            "avg_fitness": avg,
+        })
         if avg < best_avg:
             best_avg = avg
             best_pop = pop
 
-    # --- mutation type ---
+    # Step 2: Mutation Type
     mut_types = ["flip", "swap"]
     best_mut = mut_types[0]
     best_avg = float("inf")
@@ -80,26 +78,23 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
                 mutation_type=m,
                 normalization_bounds=norm_bounds,
                 verbose=False,
-            )[1]
-            for _ in range(10)
+            )[1] for _ in range(1)
         ]
         avg = float(np.mean(scores))
         print(f"    - mutation {m}: {avg:.4f}")
-        results.append(
-            {
-                "instance": instance_name,
-                "step": "mutation",
-                "pop_size": best_pop,
-                "mutation_type": m,
-                "crossover": "uniform",
-                "avg_fitness": avg,
-            }
-        )
+        results.append({
+            "instance": instance_name,
+            "step": "mutation",
+            "pop_size": best_pop,
+            "mutation_type": m,
+            "crossover": "uniform",
+            "avg_fitness": avg,
+        })
         if avg < best_avg:
             best_avg = avg
             best_mut = m
 
-    # --- crossover method ---
+    # Step 3: Crossover Method
     cross_methods = ["uniform", "one_point"]
     best_cross = cross_methods[0]
     best_avg = float("inf")
@@ -116,21 +111,18 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
                 crossover_method=c,
                 normalization_bounds=norm_bounds,
                 verbose=False,
-            )[1]
-            for _ in range(10)
+            )[1] for _ in range(1)
         ]
         avg = float(np.mean(scores))
         print(f"    - crossover {c}: {avg:.4f}")
-        results.append(
-            {
-                "instance": instance_name,
-                "step": "crossover",
-                "pop_size": best_pop,
-                "mutation_type": best_mut,
-                "crossover": c,
-                "avg_fitness": avg,
-            }
-        )
+        results.append({
+            "instance": instance_name,
+            "step": "crossover",
+            "pop_size": best_pop,
+            "mutation_type": best_mut,
+            "crossover": c,
+            "avg_fitness": avg,
+        })
         if avg < best_avg:
             best_avg = avg
             best_cross = c
@@ -149,14 +141,11 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
 
 def evaluate_instance(df_towers, df_users, ga_params, kbga_params, instance_name, save_comparison=False):
     norm_bounds = ga_params["normalization_bounds"]
-    baseline = calculate_fitness(
-        df_towers, df_users, normalization_bounds=norm_bounds, verbose=False
-    )["fitness"]
+    baseline = calculate_fitness(df_towers, df_users, normalization_bounds=norm_bounds, verbose=False)["fitness"]
 
     ga_scores = [
         run_ga(
-            df_towers,
-            df_users,
+            df_towers, df_users,
             pop_size=ga_params["pop_size"],
             num_generations=ga_params["num_generations"],
             mutation_rate=ga_params["mutation_rate"],
@@ -165,14 +154,12 @@ def evaluate_instance(df_towers, df_users, ga_params, kbga_params, instance_name
             crossover_method=ga_params["crossover_method"],
             normalization_bounds=norm_bounds,
             verbose=False,
-        )[1]
-        for _ in range(10)
+        )[1] for _ in range(1)
     ]
 
     kbga_scores = [
         run_kbga(
-            df_towers,
-            df_users,
+            df_towers, df_users,
             pop_size=kbga_params["pop_size"],
             num_generations=kbga_params["num_generations"],
             mutation_rate=kbga_params["mutation_rate"],
@@ -181,8 +168,7 @@ def evaluate_instance(df_towers, df_users, ga_params, kbga_params, instance_name
             crossover_method=kbga_params["crossover_method"],
             normalization_bounds=norm_bounds,
             verbose=False,
-        )[1]
-        for _ in range(10)
+        )[1] for _ in range(1)
     ]
 
     record = {
@@ -197,12 +183,10 @@ def evaluate_instance(df_towers, df_users, ga_params, kbga_params, instance_name
     if save_comparison:
         base = os.path.splitext(os.path.splitext(instance_name)[0])[0]
         cmp_path = os.path.join(OUTPUT_DIR, f"{base}_comparison.csv")
-        pd.DataFrame(
-            [
-                {"Method": "GA", "Fitness": record["ga_best"]},
-                {"Method": "KBGA", "Fitness": record["kbga_best"]},
-            ]
-        ).to_csv(cmp_path, index=False)
+        pd.DataFrame([
+            {"Method": "GA", "Fitness": record["ga_best"]},
+            {"Method": "KBGA", "Fitness": record["kbga_best"]},
+        ]).to_csv(cmp_path, index=False)
 
     return record
 
@@ -212,31 +196,31 @@ def main():
     os.makedirs(FIG_DIR, exist_ok=True)
     os.makedirs(CLEAN_DIR, exist_ok=True)
 
-    # Tune on every available instance in the data folder
     tune_instances = [f for f in os.listdir(DATA_DIR) if f.endswith(".csv.gz")]
-    ga_records = []
-    kbga_records = []
-    ga_params_map = {}
-    kbga_params_map = {}
+    ga_records, kbga_records = [], []
+    ga_params_map, kbga_params_map = {}, {}
 
     for fname in tune_instances:
         towers = load_instance(fname)
-        users = generate_users_near_towers(towers, count=1000)
+        users = generate_users_near_towers(towers, count=100000)
+        print(f"\U0001F50D File: {fname} | Towers: {towers.shape[0]} | Users: {users.shape[0]}")
+
         base = os.path.splitext(os.path.splitext(fname)[0])[0]
         towers.to_csv(os.path.join(CLEAN_DIR, f"{base}_5g_towers.csv"), index=False)
         users.to_csv(os.path.join(CLEAN_DIR, f"{base}_users.csv"), index=False)
+
         center = [
             (towers['lat'].min() + towers['lat'].max()) / 2,
             (towers['lon'].min() + towers['lon'].max()) / 2,
         ]
         plot_towers_on_map(
-            towers,
-            map_center=center,
-            df_users=users,
-            save_path=os.path.join(FIG_DIR, f"{base}_5g_map.html"),
+            towers, map_center=center, df_users=users,
+            save_path=os.path.join(FIG_DIR, f"{base}_5g_map.html")
         )
+
         ga_params, ga_df = stepwise_tuning(towers, users, run_ga, fname)
         kbga_params, kbga_df = stepwise_tuning(towers, users, run_kbga, fname)
+
         print(f"✅ Finished tuning {fname}")
         ga_records.append(ga_df)
         kbga_records.append(kbga_df)
@@ -249,23 +233,18 @@ def main():
     all_files = [f for f in os.listdir(DATA_DIR) if f.endswith(".csv.gz")]
     eval_records = []
     for fname in all_files:
-        print(f"\n🔎 Evaluating {fname}")
+        print(f"\n\U0001F50E Evaluating {fname}")
         towers = load_instance(fname)
-        users = generate_users_near_towers(towers, count=1000)
+        users = generate_users_near_towers(towers, count=100000)
+        print(f"\U0001F50D File: {fname} | Towers: {towers.shape[0]} | Users: {users.shape[0]}")
+
         ga_params = ga_params_map.get(fname, list(ga_params_map.values())[0])
         kbga_params = kbga_params_map.get(fname, list(kbga_params_map.values())[0])
-        record = evaluate_instance(
-            towers,
-            users,
-            ga_params,
-            kbga_params,
-            fname,
-            save_comparison=True,
-        )
+
+        record = evaluate_instance(towers, users, ga_params, kbga_params, fname, save_comparison=True)
         eval_records.append(record)
-        print(
-            f"    baseline={record['baseline']:.4f}, GA best={record['ga_best']:.4f}, KBGA best={record['kbga_best']:.4f}"
-        )
+
+        print(f"    baseline={record['baseline']:.4f}, GA best={record['ga_best']:.4f}, KBGA best={record['kbga_best']:.4f}")
 
     eval_df = pd.DataFrame(eval_records)
     eval_df.to_csv(os.path.join(OUTPUT_DIR, "evaluation_summary.csv"), index=False)

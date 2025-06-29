@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from rasterio.transform import xy
 
-def generate_users_from_population_raster(tif_path, sample_count=1000):
+def generate_users_from_population_raster(tif_path, sample_count=100000):
     with rasterio.open(tif_path) as src:
         data = src.read(1)
         transform = src.transform
