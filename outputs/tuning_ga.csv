@@ -1,0 +1,15 @@
+instance,step,pop_size,mutation_type,crossover,avg_fitness
+france.csv.gz,population,20,flip,uniform,13.256675
+france.csv.gz,population,50,flip,uniform,12.667863
+france.csv.gz,population,100,flip,uniform,12.540889
+france.csv.gz,mutation,100,flip,uniform,12.349629
+france.csv.gz,mutation,100,swap,uniform,10.55564
+france.csv.gz,crossover,100,swap,uniform,10.167372
+france.csv.gz,crossover,100,swap,one_point,12.130395
+germany.csv.gz,population,20,flip,uniform,15.877182
+germany.csv.gz,population,50,flip,uniform,15.220679
+germany.csv.gz,population,100,flip,uniform,14.683336
+germany.csv.gz,mutation,100,flip,uniform,14.780575
+germany.csv.gz,mutation,100,swap,uniform,13.570422
+germany.csv.gz,crossover,100,swap,uniform,13.30892
+germany.csv.gz,crossover,100,swap,one_point,14.612704

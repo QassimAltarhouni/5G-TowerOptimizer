@@ -196,14 +196,20 @@ def main():
     os.makedirs(FIG_DIR, exist_ok=True)
     os.makedirs(CLEAN_DIR, exist_ok=True)
 
-    tune_instances = [f for f in os.listdir(DATA_DIR) if f.endswith(".csv.gz")]
+    all_files = [f for f in os.listdir(DATA_DIR) if f.endswith(".csv.gz")]
+    tune_targets = {"france.csv.gz", "germany.csv.gz"}
+
     ga_records, kbga_records = [], []
     ga_params_map, kbga_params_map = {}, {}
 
-    for fname in tune_instances:
+    # === First: Only Tune France and Germany ===
+    for fname in all_files:
+        if fname not in tune_targets:
+            continue  # Skip non-targets for tuning
+
         towers = load_instance(fname)
         users = generate_users_near_towers(towers, count=100000)
-        print(f"\U0001F50D File: {fname} | Towers: {towers.shape[0]} | Users: {users.shape[0]}")
+        print(f"🔧 Tuning File: {fname} | Towers: {towers.shape[0]} | Users: {users.shape[0]}")
 
         base = os.path.splitext(os.path.splitext(fname)[0])[0]
         towers.to_csv(os.path.join(CLEAN_DIR, f"{base}_5g_towers.csv"), index=False)
@@ -218,33 +224,54 @@ def main():
             save_path=os.path.join(FIG_DIR, f"{base}_5g_map.html")
         )
 
+        # Perform tuning
         ga_params, ga_df = stepwise_tuning(towers, users, run_ga, fname)
         kbga_params, kbga_df = stepwise_tuning(towers, users, run_kbga, fname)
 
-        print(f"✅ Finished tuning {fname}")
         ga_records.append(ga_df)
         kbga_records.append(kbga_df)
         ga_params_map[fname] = ga_params
         kbga_params_map[fname] = kbga_params
+        print(f"✅ Finished tuning {fname}")
 
-    pd.concat(ga_records).to_csv(os.path.join(OUTPUT_DIR, "tuning_ga.csv"), index=False)
-    pd.concat(kbga_records).to_csv(os.path.join(OUTPUT_DIR, "tuning_kbga.csv"), index=False)
+    # Save tuning results
+    if ga_records:
+        pd.concat(ga_records).to_csv(os.path.join(OUTPUT_DIR, "tuning_ga.csv"), index=False)
+    if kbga_records:
+        pd.concat(kbga_records).to_csv(os.path.join(OUTPUT_DIR, "tuning_kbga.csv"), index=False)
 
-    all_files = [f for f in os.listdir(DATA_DIR) if f.endswith(".csv.gz")]
+    # === Evaluation for All Files (Using Tuned or Default France Params) ===
+    default_ga_params = ga_params_map.get("france.csv.gz")
+    default_kbga_params = kbga_params_map.get("france.csv.gz")
+
     eval_records = []
     for fname in all_files:
-        print(f"\n\U0001F50E Evaluating {fname}")
+        print(f"\n🔍 Evaluating {fname}")
         towers = load_instance(fname)
         users = generate_users_near_towers(towers, count=100000)
-        print(f"\U0001F50D File: {fname} | Towers: {towers.shape[0]} | Users: {users.shape[0]}")
+        print(f"📊 File: {fname} | Towers: {towers.shape[0]} | Users: {users.shape[0]}")
 
-        ga_params = ga_params_map.get(fname, list(ga_params_map.values())[0])
-        kbga_params = kbga_params_map.get(fname, list(kbga_params_map.values())[0])
+        base = os.path.splitext(os.path.splitext(fname)[0])[0]
+        towers.to_csv(os.path.join(CLEAN_DIR, f"{base}_5g_towers.csv"), index=False)
+        users.to_csv(os.path.join(CLEAN_DIR, f"{base}_users.csv"), index=False)
+
+        center = [
+            (towers['lat'].min() + towers['lat'].max()) / 2,
+            (towers['lon'].min() + towers['lon'].max()) / 2,
+        ]
+        plot_towers_on_map(
+            towers, map_center=center, df_users=users,
+            save_path=os.path.join(FIG_DIR, f"{base}_5g_map.html")
+        )
+
+        # Use tuned params if available; else use France’s
+        ga_params = ga_params_map.get(fname, default_ga_params)
+        kbga_params = kbga_params_map.get(fname, default_kbga_params)
 
         record = evaluate_instance(towers, users, ga_params, kbga_params, fname, save_comparison=True)
         eval_records.append(record)
 
-        print(f"    baseline={record['baseline']:.4f}, GA best={record['ga_best']:.4f}, KBGA best={record['kbga_best']:.4f}")
+        print(f"    ✅ baseline={record['baseline']:.4f}, GA best={record['ga_best']:.4f}, KBGA best={record['kbga_best']:.4f}")
 
     eval_df = pd.DataFrame(eval_records)
     eval_df.to_csv(os.path.join(OUTPUT_DIR, "evaluation_summary.csv"), index=False)
