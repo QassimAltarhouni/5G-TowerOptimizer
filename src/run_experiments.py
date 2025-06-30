@@ -141,43 +141,91 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
 
 def evaluate_instance(df_towers, df_users, ga_params, kbga_params, instance_name, save_comparison=False):
     norm_bounds = ga_params["normalization_bounds"]
-    baseline = calculate_fitness(df_towers, df_users, normalization_bounds=norm_bounds, verbose=False)["fitness"]
+    """Evaluate a single dataset with GA and KBGA and record detailed stats."""
 
-    ga_scores = [
-        run_ga(
-            df_towers, df_users,
-            pop_size=ga_params["pop_size"],
-            num_generations=ga_params["num_generations"],
-            mutation_rate=ga_params["mutation_rate"],
-            num_parents=ga_params["num_parents"],
-            mutation_type=ga_params["mutation_type"],
-            crossover_method=ga_params["crossover_method"],
-            normalization_bounds=norm_bounds,
-            verbose=False,
-        )[1] for _ in range(1)
-    ]
+    # === Baseline using all towers (normalized and raw) ===
+    baseline_norm = calculate_fitness(
+        df_towers,
+        df_users,
+        normalization_bounds=norm_bounds,
+        verbose=False,
+    )["fitness"]
+    baseline_stats = calculate_fitness(df_towers, df_users, verbose=False)
 
-    kbga_scores = [
-        run_kbga(
-            df_towers, df_users,
-            pop_size=kbga_params["pop_size"],
-            num_generations=kbga_params["num_generations"],
-            mutation_rate=kbga_params["mutation_rate"],
-            num_parents=kbga_params["num_parents"],
-            mutation_type=kbga_params["mutation_type"],
-            crossover_method=kbga_params["crossover_method"],
-            normalization_bounds=norm_bounds,
-            verbose=False,
-        )[1] for _ in range(1)
-    ]
+    # === Run GA once to obtain best solution and fitness ===
+    ga_solution, ga_fitness = run_ga(
+        df_towers,
+        df_users,
+        pop_size=ga_params["pop_size"],
+        num_generations=ga_params["num_generations"],
+        mutation_rate=ga_params["mutation_rate"],
+        num_parents=ga_params["num_parents"],
+        mutation_type=ga_params["mutation_type"],
+        crossover_method=ga_params["crossover_method"],
+        normalization_bounds=norm_bounds,
+        verbose=False,
+    )
+
+    df_ga = df_towers.copy()
+    df_ga["active"] = ga_solution
+    df_ga_active = df_ga[df_ga["active"] == 1].copy()
+    ga_stats = calculate_fitness(df_ga_active, df_users, verbose=False)
+
+    # === Run KBGA once ===
+    kbga_solution, kbga_fitness = run_kbga(
+        df_towers,
+        df_users,
+        pop_size=kbga_params["pop_size"],
+        num_generations=kbga_params["num_generations"],
+        mutation_rate=kbga_params["mutation_rate"],
+        num_parents=kbga_params["num_parents"],
+        mutation_type=kbga_params["mutation_type"],
+        crossover_method=kbga_params["crossover_method"],
+        normalization_bounds=norm_bounds,
+        verbose=False,
+    )
+
+    df_kbga = df_towers.copy()
+    df_kbga["active"] = kbga_solution
+    df_kbga_active = df_kbga[df_kbga["active"] == 1].copy()
+    kbga_stats = calculate_fitness(df_kbga_active, df_users, verbose=False)
 
     record = {
         "instance": instance_name,
-        "baseline": float(baseline),
-        "ga_best": float(np.min(ga_scores)),
-        "ga_worst": float(np.max(ga_scores)),
-        "kbga_best": float(np.min(kbga_scores)),
-        "kbga_worst": float(np.max(kbga_scores)),
+        "baseline": float(baseline_norm),
+        "ga_best": float(ga_fitness),
+        "ga_worst": float(ga_fitness),
+        "kbga_best": float(kbga_fitness),
+        "kbga_worst": float(kbga_fitness),
+        # Raw metrics (no normalization)
+        "baseline_active_towers": baseline_stats["active_towers"],
+        "baseline_unserved_demand": baseline_stats["unserved_demand"],
+        "baseline_overload": baseline_stats["overload"],
+        "baseline_excessive_distance": baseline_stats["excessive_distance"],
+        "baseline_imbalance": baseline_stats["imbalance"],
+        "ga_active_towers": ga_stats["active_towers"],
+        "ga_unserved_demand": ga_stats["unserved_demand"],
+        "ga_overload": ga_stats["overload"],
+        "ga_excessive_distance": ga_stats["excessive_distance"],
+        "ga_imbalance": ga_stats["imbalance"],
+        "kbga_active_towers": kbga_stats["active_towers"],
+        "kbga_unserved_demand": kbga_stats["unserved_demand"],
+        "kbga_overload": kbga_stats["overload"],
+        "kbga_excessive_distance": kbga_stats["excessive_distance"],
+        "kbga_imbalance": kbga_stats["imbalance"],
+        # Algorithm settings
+        "ga_pop_size": ga_params["pop_size"],
+        "ga_num_generations": ga_params["num_generations"],
+        "ga_mutation_rate": ga_params["mutation_rate"],
+        "ga_num_parents": ga_params["num_parents"],
+        "ga_mutation_type": ga_params["mutation_type"],
+        "ga_crossover_method": ga_params["crossover_method"],
+        "kbga_pop_size": kbga_params["pop_size"],
+        "kbga_num_generations": kbga_params["num_generations"],
+        "kbga_mutation_rate": kbga_params["mutation_rate"],
+        "kbga_num_parents": kbga_params["num_parents"],
+        "kbga_mutation_type": kbga_params["mutation_type"],
+        "kbga_crossover_method": kbga_params["crossover_method"],
     }
 
     if save_comparison:
