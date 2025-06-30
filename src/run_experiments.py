@@ -36,9 +36,10 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
     best_pop = pop_sizes[0]
     best_avg = float("inf")
     print("  • Step 1/3: population size")
-    for pop in pop_sizes:
-        scores = [
-            ga_func(
+    with concurrent.futures.ProcessPoolExecutor() as ex:
+        fut_map = {
+            ex.submit(
+                ga_func,
                 df_towers,
                 df_users,
                 pop_size=pop,
@@ -46,30 +47,35 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
                 mutation_rate=0.1,
                 normalization_bounds=norm_bounds,
                 verbose=False,
-            )[1] for _ in range(5)
-        ]
-        avg = float(np.mean(scores))
-        print(f"    - pop {pop}: {avg:.4f}")
-        results.append({
-            "instance": instance_name,
-            "step": "population",
-            "pop_size": pop,
-            "mutation_type": "flip",
-            "crossover": "uniform",
-            "avg_fitness": avg,
-        })
-        if avg < best_avg:
-            best_avg = avg
-            best_pop = pop
+            ): pop
+            for pop in pop_sizes
+        }
+        for fut in concurrent.futures.as_completed(fut_map):
+            pop = fut_map[fut]
+            score = fut.result()[1]
+            avg = float(score)
+            print(f"    - pop {pop}: {avg:.4f}")
+            results.append({
+                "instance": instance_name,
+                "step": "population",
+                "pop_size": pop,
+                "mutation_type": "flip",
+                "crossover": "uniform",
+                "avg_fitness": avg,
+            })
+            if avg < best_avg:
+                best_avg = avg
+                best_pop = pop
 
     # Step 2: Mutation Type
     mut_types = ["flip", "swap"]
     best_mut = mut_types[0]
     best_avg = float("inf")
     print("  • Step 2/3: mutation type")
-    for m in mut_types:
-        scores = [
-            ga_func(
+    with concurrent.futures.ProcessPoolExecutor() as ex:
+        fut_map = {
+            ex.submit(
+                ga_func,
                 df_towers,
                 df_users,
                 pop_size=best_pop,
@@ -78,30 +84,34 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
                 mutation_type=m,
                 normalization_bounds=norm_bounds,
                 verbose=False,
-            )[1] for _ in range(10)
-        ]
-        avg = float(np.mean(scores))
-        print(f"    - mutation {m}: {avg:.4f}")
-        results.append({
-            "instance": instance_name,
-            "step": "mutation",
-            "pop_size": best_pop,
-            "mutation_type": m,
-            "crossover": "uniform",
-            "avg_fitness": avg,
-        })
-        if avg < best_avg:
-            best_avg = avg
-            best_mut = m
+            ): m
+            for m in mut_types
+        }
+        for fut in concurrent.futures.as_completed(fut_map):
+            m = fut_map[fut]
+            score = fut.result()[1]
+            avg = float(score)
+            print(f"    - mutation {m}: {avg:.4f}")
+            results.append({
+                "instance": instance_name,
+                "step": "mutation",
+                "pop_size": best_pop,
+                "mutation_type": m,
+                "crossover": "uniform",
+                "avg_fitness": avg,
+            })
+            if avg < best_avg:
+                best_avg = avg
 
     # Step 3: Crossover Method
     cross_methods = ["uniform", "one_point"]
     best_cross = cross_methods[0]
     best_avg = float("inf")
     print("  • Step 3/3: crossover method")
-    for c in cross_methods:
-        scores = [
-            ga_func(
+    with concurrent.futures.ProcessPoolExecutor() as ex:
+        fut_map = {
+            ex.submit(
+                ga_func,
                 df_towers,
                 df_users,
                 pop_size=best_pop,
@@ -111,21 +121,25 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
                 crossover_method=c,
                 normalization_bounds=norm_bounds,
                 verbose=False,
-            )[1] for _ in range(5)
-        ]
-        avg = float(np.mean(scores))
-        print(f"    - crossover {c}: {avg:.4f}")
-        results.append({
-            "instance": instance_name,
-            "step": "crossover",
-            "pop_size": best_pop,
-            "mutation_type": best_mut,
-            "crossover": c,
-            "avg_fitness": avg,
-        })
-        if avg < best_avg:
-            best_avg = avg
-            best_cross = c
+            ): c
+            for c in cross_methods
+        }
+        for fut in concurrent.futures.as_completed(fut_map):
+            c = fut_map[fut]
+            score = fut.result()[1]
+            avg = float(score)
+            print(f"    - crossover {c}: {avg:.4f}")
+            results.append({
+                "instance": instance_name,
+                "step": "crossover",
+                "pop_size": best_pop,
+                "mutation_type": best_mut,
+                "crossover": c,
+                "avg_fitness": avg,
+            })
+            if avg < best_avg:
+                best_avg = avg
+                best_cross = c
 
     best_params = {
         "pop_size": best_pop,
@@ -238,6 +252,31 @@ def evaluate_instance(df_towers, df_users, ga_params, kbga_params, instance_name
 
     return record
 
+def evaluate_file(fname, ga_params, kbga_params):
+    """Wrapper to evaluate a single file. Intended for parallel use."""
+    towers = load_instance(fname)
+    users = generate_users_near_towers(towers, count=100000)
+    print(f"\n🔍 Evaluating {fname}")
+    print(f"📊 File: {fname} | Towers: {towers.shape[0]} | Users: {users.shape[0]}")
+
+    base = os.path.splitext(os.path.splitext(fname)[0])[0]
+    towers.to_csv(os.path.join(CLEAN_DIR, f"{base}_5g_towers.csv"), index=False)
+    users.to_csv(os.path.join(CLEAN_DIR, f"{base}_users.csv"), index=False)
+
+    center = [
+        (towers['lat'].min() + towers['lat'].max()) / 2,
+        (towers['lon'].min() + towers['lon'].max()) / 2,
+    ]
+    plot_towers_on_map(
+        towers,
+        map_center=center,
+        df_users=users,
+        save_path=os.path.join(FIG_DIR, f"{base}_5g_map.html")
+    )
+
+    record = evaluate_instance(towers, users, ga_params, kbga_params, fname, save_comparison=True)
+    print(f"    ✅ baseline={record['baseline']:.4f}, GA best={record['ga_best']:.4f}, KBGA best={record['kbga_best']:.4f}")
+    return record
 
 
 def evaluate_file(fname, ga_params, kbga_params):
