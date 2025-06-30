@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
-
+import concurrent.futures
 from data_loader import load_opencellid_data
 from simulator import generate_users_near_towers
 from fitness_function import calculate_fitness, compute_normalization_bounds
@@ -239,6 +239,34 @@ def evaluate_instance(df_towers, df_users, ga_params, kbga_params, instance_name
     return record
 
 
+
+def evaluate_file(fname, ga_params, kbga_params):
+    """Wrapper to evaluate a single file. Intended for parallel use."""
+    towers = load_instance(fname)
+    users = generate_users_near_towers(towers, count=100000)
+    print(f"\n🔍 Evaluating {fname}")
+    print(f"📊 File: {fname} | Towers: {towers.shape[0]} | Users: {users.shape[0]}")
+
+    base = os.path.splitext(os.path.splitext(fname)[0])[0]
+    towers.to_csv(os.path.join(CLEAN_DIR, f"{base}_5g_towers.csv"), index=False)
+    users.to_csv(os.path.join(CLEAN_DIR, f"{base}_users.csv"), index=False)
+
+    center = [
+        (towers['lat'].min() + towers['lat'].max()) / 2,
+        (towers['lon'].min() + towers['lon'].max()) / 2,
+    ]
+    plot_towers_on_map(
+        towers,
+        map_center=center,
+        df_users=users,
+        save_path=os.path.join(FIG_DIR, f"{base}_5g_map.html")
+    )
+
+    record = evaluate_instance(towers, users, ga_params, kbga_params, fname, save_comparison=True)
+    print(f"    ✅ baseline={record['baseline']:.4f}, GA best={record['ga_best']:.4f}, KBGA best={record['kbga_best']:.4f}")
+    return record
+
+
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     os.makedirs(FIG_DIR, exist_ok=True)
@@ -293,34 +321,22 @@ def main():
     default_kbga_params = kbga_params_map.get("france.csv.gz")
 
     eval_records = []
-    for fname in all_files:
-        print(f"\n🔍 Evaluating {fname}")
-        towers = load_instance(fname)
-        users = generate_users_near_towers(towers, count=100000)
-        print(f"📊 File: {fname} | Towers: {towers.shape[0]} | Users: {users.shape[0]}")
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        tasks = []
+        for fname in all_files:
+            ga_params = ga_params_map.get(fname, default_ga_params)
+            kbga_params = kbga_params_map.get(fname, default_kbga_params)
+            tasks.append(
+                executor.submit(
+                    evaluate_file,
+                    fname,
+                    ga_params,
+                    kbga_params,
+                )
+            )
 
-        base = os.path.splitext(os.path.splitext(fname)[0])[0]
-        towers.to_csv(os.path.join(CLEAN_DIR, f"{base}_5g_towers.csv"), index=False)
-        users.to_csv(os.path.join(CLEAN_DIR, f"{base}_users.csv"), index=False)
-
-        center = [
-            (towers['lat'].min() + towers['lat'].max()) / 2,
-            (towers['lon'].min() + towers['lon'].max()) / 2,
-        ]
-        plot_towers_on_map(
-            towers, map_center=center, df_users=users,
-            save_path=os.path.join(FIG_DIR, f"{base}_5g_map.html")
-        )
-
-        # Use tuned params if available; else use France’s
-        ga_params = ga_params_map.get(fname, default_ga_params)
-        kbga_params = kbga_params_map.get(fname, default_kbga_params)
-
-        record = evaluate_instance(towers, users, ga_params, kbga_params, fname, save_comparison=True)
-        eval_records.append(record)
-
-        print(f"    ✅ baseline={record['baseline']:.4f}, GA best={record['ga_best']:.4f}, KBGA best={record['kbga_best']:.4f}")
-
+        for fut in concurrent.futures.as_completed(tasks):
+            eval_records.append(fut.result())
     eval_df = pd.DataFrame(eval_records)
     eval_df.to_csv(os.path.join(OUTPUT_DIR, "evaluation_summary.csv"), index=False)
 
