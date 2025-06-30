@@ -5,6 +5,7 @@ from fitness_function import calculate_fitness
 from knowledge_utils import apply_knowledge_rules
 from knowledge_utils import apply_knowledge_rules
 from knowledge_utils import apply_knowledge_rules
+from concurrent.futures import ThreadPoolExecutor
 
 
 def initialize_population(pop_size, num_towers):

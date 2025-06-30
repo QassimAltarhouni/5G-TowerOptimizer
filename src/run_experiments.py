@@ -46,7 +46,7 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
                 mutation_rate=0.1,
                 normalization_bounds=norm_bounds,
                 verbose=False,
-            )[1] for _ in range(1)
+            )[1] for _ in range(5)
         ]
         avg = float(np.mean(scores))
         print(f"    - pop {pop}: {avg:.4f}")
@@ -78,7 +78,7 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
                 mutation_type=m,
                 normalization_bounds=norm_bounds,
                 verbose=False,
-            )[1] for _ in range(1)
+            )[1] for _ in range(10)
         ]
         avg = float(np.mean(scores))
         print(f"    - mutation {m}: {avg:.4f}")
@@ -111,7 +111,7 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
                 crossover_method=c,
                 normalization_bounds=norm_bounds,
                 verbose=False,
-            )[1] for _ in range(1)
+            )[1] for _ in range(5)
         ]
         avg = float(np.mean(scores))
         print(f"    - crossover {c}: {avg:.4f}")
