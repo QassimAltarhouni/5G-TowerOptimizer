@@ -328,9 +328,9 @@ def evaluate_file(fname, ga_params, kbga_params):
     towers = load_instance(fname)
     raster = _get_raster_path(fname)
     if raster:
-        users = generate_users_from_population_raster(raster, sample_count=10000)
+        users = generate_users_from_population_raster(raster, sample_count=100000)
     else:
-        users = generate_users_near_towers(towers, count=10000)
+        users = generate_users_near_towers(towers, count=100000)
 
     print(f"\n🔍 Evaluating {fname}")
     print(f"📊 File: {fname} | Towers: {towers.shape[0]} | Users: {users.shape[0]}")
