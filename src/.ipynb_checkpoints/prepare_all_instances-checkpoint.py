@@ -16,14 +16,15 @@ os.makedirs(CLEAN_DATA_DIR, exist_ok=True)
 
 # أسماء الملفات بعد إعادة التسمية اليدوية حسب الدولة
 country_files = {
-    "germany": "germany.csv.gz",
-    "france": "france.csv.gz",
-    "uk": "uk.csv.gz",
-    "usa_310": "usa_310.csv.gz",
-    "usa_311": "usa_311.csv.gz",
-    "usa_312": "usa_312.csv.gz",
-    "usa_313": "usa_313.csv.gz",
-    "usa_314": "usa_314.csv.gz"
+    "australia": "Australia.csv",
+    "austria": "Austria.csv",
+    "china": "China.csv",
+    "france": "france.csv",
+    "germany": "germany.csv",
+    "hongkong": "HongKong.csv",
+    "singapore": "Singapore.csv",
+    "uk": "uk.csv",
+    "usa_310": "usa_310.csv"
 }
 
 for country, filename in country_files.items():
