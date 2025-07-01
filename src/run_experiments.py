@@ -16,6 +16,20 @@ FIG_DIR = os.path.join(OUTPUT_DIR, "figures")
 CLEAN_DIR = os.path.join(OUTPUT_DIR, "clean_data")
 
 
+def _ga_replicates(ga_func, df_towers, df_users, repeats=10, **kwargs):
+    """Run GA function multiple times and return average fitness."""
+    scores = []
+    for _ in range(repeats):
+        _, fit = ga_func(
+            df_towers,
+            df_users,
+            **kwargs,
+            verbose=False,
+        )
+        scores.append(fit)
+    return float(np.mean(scores))
+
+
 def load_instance(filename):
     """Load OpenCellID data and filter only 5G (NR) records."""
     path = os.path.join(DATA_DIR, filename)
@@ -36,42 +50,47 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
     best_pop = pop_sizes[0]
     best_avg = float("inf")
     print("  • Step 1/3: population size")
-    for pop in pop_sizes:
-        scores = []
-        _, fit = ga_func(
+    with concurrent.futures.ProcessPoolExecutor(max_workers=len(pop_sizes)) as ex:
+        futures = {
+            ex.submit(
+                _ga_replicates,
+                ga_func,
                 df_towers,
                 df_users,
+                repeats=1,
                 pop_size=pop,
                 num_generations=30,
                 mutation_rate=0.1,
                 normalization_bounds=norm_bounds,
-                verbose=False,
-            )
-        scores.append(fit)
-        avg = float(np.mean(scores))
-        print(f"    - pop {pop}: {avg:.4f}")
-        results.append({
-            "instance": instance_name,
-            "step": "population",
-            "pop_size": pop,
-            "mutation_type": "flip",
-            "crossover": "uniform",
-            "avg_fitness": avg,
-        })
-        if avg < best_avg:
-            best_avg = avg
-            best_pop = pop
+            ): pop
+            for pop in pop_sizes
+        }
+        for fut in concurrent.futures.as_completed(futures):
+            pop = futures[fut]
+            avg = fut.result()
+            print(f"    - pop {pop}: {avg:.4f}")
+            results.append({
+                "instance": instance_name,
+                "step": "population",
+                "pop_size": pop,
+                "mutation_type": "flip",
+                "crossover": "uniform",
+                "avg_fitness": avg,
+            })
+            if avg < best_avg:
+                best_avg = avg
+                best_pop = pop
 
     # Step 2: Mutation Type
     mut_types = ["flip", "swap"]
     best_mut = mut_types[0]
     best_avg = float("inf")
     print("  • Step 2/3: mutation type")
-    with concurrent.futures.ProcessPoolExecutor() as ex:
-        for m in mut_types:
-            scores = []
-            for _ in range(10):
-                _, fit = ga_func(
+    with concurrent.futures.ProcessPoolExecutor(max_workers=len(mut_types)) as ex:
+        futures = {
+            ex.submit(
+                _ga_replicates,
+                ga_func,
                 df_towers,
                 df_users,
                 pop_size=best_pop,
@@ -79,10 +98,12 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
                 mutation_rate=0.1,
                 mutation_type=m,
                 normalization_bounds=norm_bounds,
-                verbose=False,
-                )
-                scores.append(fit)
-            avg = float(np.mean(scores))
+            ): m
+            for m in mut_types
+        }
+        for fut in concurrent.futures.as_completed(futures):
+            m = futures[fut]
+            avg = fut.result()
             print(f"    - mutation {m}: {avg:.4f}")
             results.append({
                 "instance": instance_name,
@@ -101,11 +122,11 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
     best_cross = cross_methods[0]
     best_avg = float("inf")
     print("  • Step 3/3: crossover method")
-    with concurrent.futures.ProcessPoolExecutor() as ex:
-        for c in cross_methods:
-            scores = []
-            for _ in range(10):
-                _, fit = ga_func(
+    with concurrent.futures.ProcessPoolExecutor(max_workers=len(cross_methods)) as ex:
+        futures = {
+            ex.submit(
+                _ga_replicates,
+                ga_func,
                 df_towers,
                 df_users,
                 pop_size=best_pop,
@@ -114,10 +135,12 @@ def stepwise_tuning(df_towers, df_users, ga_func, instance_name):
                 mutation_type=best_mut,
                 crossover_method=c,
                 normalization_bounds=norm_bounds,
-                verbose=False,
-                )
-                scores.append(fit)
-            avg = float(np.mean(scores))
+            ): c
+            for c in cross_methods
+        }
+        for fut in concurrent.futures.as_completed(futures):
+            c = futures[fut]
+            avg = fut.result()
             print(f"    - crossover {c}: {avg:.4f}")
             results.append({
                 "instance": instance_name,
@@ -159,21 +182,29 @@ def evaluate_instance(df_towers, df_users, ga_params, kbga_params, instance_name
     # === Run GA multiple times and keep best/worst ===
     ga_fitnesses = []
     ga_solutions = []
-    for _ in range(10):
-        sol, fit = run_ga(
-            df_towers,
-            df_users,
-            pop_size=ga_params["pop_size"],
-            num_generations=ga_params["num_generations"],
-            mutation_rate=ga_params["mutation_rate"],
-            num_parents=ga_params["num_parents"],
-            mutation_type=ga_params["mutation_type"],
-            crossover_method=ga_params["crossover_method"],
-            normalization_bounds=norm_bounds,
-            verbose=False,
-        )
-        ga_solutions.append(sol)
-        ga_fitnesses.append(fit)
+    with concurrent.futures.ProcessPoolExecutor(
+            max_workers=min(4, os.cpu_count())
+    ) as ex:
+        futures = [
+            ex.submit(
+                run_ga,
+                df_towers,
+                df_users,
+                pop_size=ga_params["pop_size"],
+                num_generations=ga_params["num_generations"],
+                mutation_rate=ga_params["mutation_rate"],
+                num_parents=ga_params["num_parents"],
+                mutation_type=ga_params["mutation_type"],
+                crossover_method=ga_params["crossover_method"],
+                normalization_bounds=norm_bounds,
+                verbose=False,
+            )
+            for _ in range(10)
+        ]
+        for fut in concurrent.futures.as_completed(futures):
+            sol, fit = fut.result()
+            ga_solutions.append(sol)
+            ga_fitnesses.append(fit)
 
     best_ga_idx = int(np.argmin(ga_fitnesses))
     ga_fitness = float(min(ga_fitnesses))
@@ -188,21 +219,29 @@ def evaluate_instance(df_towers, df_users, ga_params, kbga_params, instance_name
     # === Run KBGA multiple times and keep best/worst ===
     kbga_fitnesses = []
     kbga_solutions = []
-    for _ in range(10):
-        sol, fit = run_kbga(
-            df_towers,
-            df_users,
-            pop_size=kbga_params["pop_size"],
-            num_generations=kbga_params["num_generations"],
-            mutation_rate=kbga_params["mutation_rate"],
-            num_parents=kbga_params["num_parents"],
-            mutation_type=kbga_params["mutation_type"],
-            crossover_method=kbga_params["crossover_method"],
-            normalization_bounds=norm_bounds,
-            verbose=False,
-        )
-        kbga_solutions.append(sol)
-        kbga_fitnesses.append(fit)
+    with concurrent.futures.ProcessPoolExecutor(
+            max_workers=min(4, os.cpu_count())
+    ) as ex:
+        futures = [
+            ex.submit(
+                run_kbga,
+                df_towers,
+                df_users,
+                pop_size=kbga_params["pop_size"],
+                num_generations=kbga_params["num_generations"],
+                mutation_rate=kbga_params["mutation_rate"],
+                num_parents=kbga_params["num_parents"],
+                mutation_type=kbga_params["mutation_type"],
+                crossover_method=kbga_params["crossover_method"],
+                normalization_bounds=norm_bounds,
+                verbose=False,
+            )
+            for _ in range(10)
+        ]
+        for fut in concurrent.futures.as_completed(futures):
+            sol, fit = fut.result()
+            kbga_solutions.append(sol)
+            kbga_fitnesses.append(fit)
 
     best_kbga_idx = int(np.argmin(kbga_fitnesses))
     kbga_fitness = float(min(kbga_fitnesses))
@@ -295,18 +334,18 @@ def main():
     os.makedirs(CLEAN_DIR, exist_ok=True)
 
     all_files = [f for f in os.listdir(DATA_DIR) if f.endswith(".csv.gz")]
-    tune_targets = {"france.csv.gz", "germany.csv.gz"}
+    tune_targets = {"Austria.csv.gz", "germany.csv.gz"}
 
     ga_records, kbga_records = [], []
     ga_params_map, kbga_params_map = {}, {}
 
-    # === First: Only Tune France and Germany ===
+    # === First: Only Tune Austria and Germany ===
     for fname in all_files:
         if fname not in tune_targets:
             continue  # Skip non-targets for tuning
 
         towers = load_instance(fname)
-        users = generate_users_near_towers(towers, count=100000)
+        users = generate_users_near_towers(towers, count=10000)
         print(f"🔧 Tuning File: {fname} | Towers: {towers.shape[0]} | Users: {users.shape[0]}")
 
         base = os.path.splitext(os.path.splitext(fname)[0])[0]
@@ -338,9 +377,9 @@ def main():
     if kbga_records:
         pd.concat(kbga_records).to_csv(os.path.join(OUTPUT_DIR, "tuning_kbga.csv"), index=False)
 
-    # === Evaluation for All Files (Using Tuned or Default France Params) ===
-    default_ga_params = ga_params_map.get("france.csv.gz")
-    default_kbga_params = kbga_params_map.get("france.csv.gz")
+    # === Evaluation for All Files (Using Tuned or Default Austria Params) ===
+    default_ga_params = ga_params_map.get("Austria.csv.gz")
+    default_kbga_params = kbga_params_map.get("Austria.csv.gz")
 
     eval_records = []
     with concurrent.futures.ProcessPoolExecutor() as executor:

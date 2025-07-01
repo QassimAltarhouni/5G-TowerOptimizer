@@ -25,7 +25,6 @@ def calculate_fitness(
     df_towers['range'] = pd.to_numeric(df_towers.get('range', 2000), errors='coerce').fillna(2000)
     df_towers = df_towers[df_towers['range'] > 0]
 
-    assignments = []
     excessive_distance_penalty = 0
     unserved_demand = 0
 
@@ -51,20 +50,16 @@ def calculate_fitness(
     excessive_distance_penalty = penalties[served_mask].sum()
     unserved_demand = demands[~served_mask].sum()
 
-    assignments = list(
-        zip(closest_cells[served_mask], demands[served_mask])
+    served_indices = closest_indices[served_mask]
+    served_demands = demands[served_mask]
+
+    load_array = np.bincount(
+        served_indices, weights=served_demands, minlength=len(df_towers)
     )
 
-    load_by_tower = {}
-    for tower_id, demand in assignments:
-        if tower_id is None:
-            unserved_demand += demand
-        else:
-            load_by_tower[tower_id] = load_by_tower.get(tower_id, 0) + demand
-
-    active_towers = len(load_by_tower)
-    overload = sum(max(0, load - tower_capacity) for load in load_by_tower.values())
-    imbalance = np.std(list(load_by_tower.values())) if load_by_tower else 0
+    active_towers = int(np.count_nonzero(load_array))
+    overload = float(np.clip(load_array - tower_capacity, 0, None).sum())
+    imbalance = float(load_array[load_array > 0].std()) if active_towers > 0 else 0.0
 
     if normalization_bounds:
         min_vals, max_vals = normalization_bounds
