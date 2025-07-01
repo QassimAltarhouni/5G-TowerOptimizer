@@ -4,9 +4,11 @@ import pandas as pd
 import concurrent.futures
 from data_loader import load_opencellid_data
 from simulator import generate_users_near_towers
+from real_user_generator import generate_users_from_population_raster
 from fitness_function import calculate_fitness, compute_normalization_bounds
 from genetic_optimizer import run_ga, run_kbga
 from visualizer import plot_towers_on_map
+
 
 
 # === Paths ===
@@ -15,6 +17,26 @@ OUTPUT_DIR = "../outputs"
 FIG_DIR = os.path.join(OUTPUT_DIR, "figures")
 CLEAN_DIR = os.path.join(OUTPUT_DIR, "clean_data")
 
+# Mapping from tower CSV files to population raster files
+POP_RASTER_MAP = {
+    "australia": "aus_pd_2020_1km_UNadj.tif",
+    "austria": "aut_pd_2020_1km_UNadj.tif",
+    "china": "chn_pd_2020_1km_UNadj.tif",
+    "germany": "deu_ppp_2020_constrained.tif",
+    "hongkong": "hkg_pd_2020_1km_UNadj.tif",
+    "singapore": "sgp_pd_2020_1km_UNadj.tif",
+    "uk": "gbr_pd_2020_1km_UNadj.tif",
+    "usa_310": "usa_pd_2020_1km_UNadj.tif",
+}
+
+def _get_raster_path(csv_name):
+    base = os.path.splitext(os.path.splitext(csv_name)[0])[0].lower()
+    tif = POP_RASTER_MAP.get(base)
+    if tif:
+        path = os.path.join(DATA_DIR, tif)
+        if os.path.exists(path):
+            return path
+    return None
 
 def _ga_replicates(ga_func, df_towers, df_users, repeats=10, **kwargs):
     """Run GA function multiple times and return average fitness."""
@@ -304,7 +326,12 @@ def evaluate_instance(df_towers, df_users, ga_params, kbga_params, instance_name
 def evaluate_file(fname, ga_params, kbga_params):
     """Wrapper to evaluate a single file. Intended for parallel use."""
     towers = load_instance(fname)
-    users = generate_users_near_towers(towers, count=100000)
+    raster = _get_raster_path(fname)
+    if raster:
+        users = generate_users_from_population_raster(raster, sample_count=10000)
+    else:
+        users = generate_users_near_towers(towers, count=10000)
+
     print(f"\n🔍 Evaluating {fname}")
     print(f"📊 File: {fname} | Towers: {towers.shape[0]} | Users: {users.shape[0]}")
 
@@ -345,7 +372,11 @@ def main():
             continue  # Skip non-targets for tuning
 
         towers = load_instance(fname)
-        users = generate_users_near_towers(towers, count=10000)
+        raster = _get_raster_path(fname)
+        if raster:
+            users = generate_users_from_population_raster(raster, sample_count=10000)
+        else:
+            users = generate_users_near_towers(towers, count=10000)
         print(f"🔧 Tuning File: {fname} | Towers: {towers.shape[0]} | Users: {users.shape[0]}")
 
         base = os.path.splitext(os.path.splitext(fname)[0])[0]
