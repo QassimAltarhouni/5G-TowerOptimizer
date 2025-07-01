@@ -16,7 +16,7 @@ def calculate_fitness(
     df_towers,
     df_users,
     tower_capacity=1000,
-    weights=(10, 5, 8, 0.5, 1),
+    weights=(10, 10, 10, 5, 5),
     verbose=True,
     normalization_bounds=None
 ):
